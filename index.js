@@ -4,20 +4,15 @@ const fs = require('fs');
 
 (async () => {
     try {
-        let urls = ["https://www.adidas.com/us/men-shoes",
-                    "https://www.adidas.com/us/men-apparel",
-                    "https://www.adidas.com/us/men-accessories", 
-                    "https://www.adidas.com/us/women-shoes",
-                    "https://www.adidas.com/us/women-apparel",
-                    "https://www.adidas.com/us/women-accessories",
-                    "https://www.adidas.com/us/boys-shoes",
-                    "https://www.adidas.com/us/boys-apparel",
-                    "https://www.adidas.com/us/girls-shoes",
-                    "https://www.adidas.com/us/girls-apparel",
-                    "https://www.adidas.com/us/kids-infant_toddler"];
+        const url = "https://www.adidas.com";
+        const resp = await axios.get(url);
+        const dom = new JSDOM(resp.data);
 
-        for (const url of urls) {
-            await scrapeProducts(url);
+        let categories = dom.window.document.querySelectorAll('.headline > a');
+        for (const category of categories) {
+            if (category.href.match(/shoes|apparel|accessories/)) {
+                await scrapeProducts(url + category.href);
+            }
         }
 
 	} catch (err) {
