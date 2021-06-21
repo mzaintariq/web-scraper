@@ -64,7 +64,7 @@ async function getData(url) {
         const productData = {};
         
         productData["name"] = getText(dom, '.gl-heading');
-        productData["description"] = getDescription(response);
+        productData["description"] = await getDescription(url);
         productData["sellingPrice"] = getText(dom, '.gl-price-item');
         productData["originalPrice"] = getOriginalPrice(dom);
         productData["color"] = getText(dom, '.color-and-price___2q0A2 > h5');
@@ -137,20 +137,33 @@ async function getImageURLs(url) {
 	}
 }
 
-function getDescription(response) {
-	let re = /"subtitle(.*?)"text/;
-    if (response.data.match(re)) {
-        let description = response.data.match(re)[0];
-        description = description.slice(14);
-        description = description.substring(0, description.length - 9);
-        return description;
-    } else {
-        return "No Description.";
-    }
+async function getDescription(url) {
+    try {
+        let productCode = url.match(/[^\/]+$/)[0];
+        productCode = productCode.match(/(.*?).html/)[0];
+        productCode = productCode.substring(0, productCode.length - 5);
+        const sizeURL = `https://www.adidas.com/api/products/${productCode}?sitePath=us`;
+
+        const { data } = await axios.get(sizeURL);
+        const productDescription = data.product_description.subtitle;
+
+        if (productDescription) {
+            return productDescription;
+        } else {
+            return "No Description.";
+        }
+
+	} catch (err) {
+		console.error(err)
+	}
 }
 
 function getText(dom, path) {
-	return dom.window.document.querySelector(path).textContent;
+    if (dom.window.document.querySelector(path).textContent) {
+        return dom.window.document.querySelector(path).textContent;
+    } else {
+        return "Not Available."
+    }
 }
 
 function getOriginalPrice(dom) {
