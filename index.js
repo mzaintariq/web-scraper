@@ -8,7 +8,10 @@ const URL = "https://www.adidas.com";
         const response = await axios.get(URL);
         const dom = new JSDOM(response.data);
 
-        let categories = dom.window.document.querySelectorAll('.headline > a');
+        const mainObj = {};
+        fs.writeFileSync('./data.json', JSON.stringify(mainObj, null, 2), 'utf-8');
+
+        const categories = dom.window.document.querySelectorAll('.headline > a');
         for (const category of categories) {
             if (category.href.match(/shoes|apparel|accessories/)) {
                 await scrapeProducts(URL + category.href);
@@ -28,12 +31,13 @@ async function scrapeProducts(url) {
         const count = data.raw.itemList.count;
         const viewSize = data.raw.itemList.viewSize;
 
-        fs.writeFile(`./${category}.txt`, 'Category: ' + category.toUpperCase() + '\n' + 'Total Products: ' + count + '\n\n', err => {
-            if (err) {
-                console.error(err)
-                return
-            }
-        })
+        let datajson = fs.readFileSync('./data.json', 'utf-8');
+        let mainObj = JSON.parse(datajson);
+        mainObj[category] = {
+            "total-products": count,
+            "products": [],
+        };
+        fs.writeFileSync('./data.json', JSON.stringify(mainObj, null, 2), 'utf-8');
 
         let itemNumber = 0;
         do {
@@ -41,12 +45,11 @@ async function scrapeProducts(url) {
             let { data } = await axios.get(newURL);
             let itemList = data.raw.itemList.items;
             for (const item of itemList) {
+                let datajson = fs.readFileSync("./data.json", "utf-8");
+                let mainObj = JSON.parse(datajson);
                 let productData = await getData("https://www.adidas.com" + item.link);
-                fs.appendFile(`./${category}.txt`, JSON.stringify(productData, null, 2) + ',\n', 'utf-8', err => {
-                    if (err) {
-                        console.error(err);
-                    }
-                });
+                mainObj[category].products.push(productData);
+                fs.writeFileSync("./data.json", JSON.stringify(mainObj, null, 2), "utf-8");
             }
             itemNumber += viewSize;
         } while (itemNumber < count);
