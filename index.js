@@ -1,17 +1,17 @@
 const axios = require('axios');
 const { JSDOM } = require("jsdom");
 const fs = require('fs');
+const URL = "https://www.adidas.com";
 
-(async () => {
+(async function () {
     try {
-        const url = "https://www.adidas.com";
-        const resp = await axios.get(url);
-        const dom = new JSDOM(resp.data);
+        const response = await axios.get(URL);
+        const dom = new JSDOM(response.data);
 
         let categories = dom.window.document.querySelectorAll('.headline > a');
         for (const category of categories) {
             if (category.href.match(/shoes|apparel|accessories/)) {
-                await scrapeProducts(url + category.href);
+                await scrapeProducts(URL + category.href);
             }
         }
 
@@ -42,7 +42,7 @@ async function scrapeProducts(url) {
             let itemList = data.raw.itemList.items;
             for (const item of itemList) {
                 let productData = await getData("https://www.adidas.com" + item.link);
-                fs.appendFile(`./${category}.txt`, JSON.stringify(productData, null, 2) + ',\n\n', 'utf-8', err => {
+                fs.appendFile(`./${category}.txt`, JSON.stringify(productData, null, 2) + ',\n', 'utf-8', err => {
                     if (err) {
                         console.error(err);
                     }
@@ -51,33 +51,36 @@ async function scrapeProducts(url) {
             itemNumber += viewSize;
         } while (itemNumber < count);
         
-	} catch (error) {
-		console.error(error);
+	} catch (err) {
+		console.error(err);
 	}
 }
 
-
 async function getData(url) {
 	try {
-        const resp = await axios.get(url);
-        const dom = new JSDOM(resp.data);
+        const response = await axios.get(url);
+        const dom = new JSDOM(response.data);
 
-        let productData = {};
+        const productData = {};
         
-        productData["name"] = dom.window.document.querySelector('.gl-heading').textContent;
-        productData["description"] = getDescription(resp);
-        productData["sellingPrice"] = dom.window.document.querySelector('.gl-price-item').textContent;
+        productData["name"] = getText(dom, '.gl-heading');
+        productData["description"] = getDescription(response);
+        productData["sellingPrice"] = getText(dom, '.gl-price-item');
         productData["originalPrice"] = getOriginalPrice(dom);
-        productData["color"] = dom.window.document.querySelector(".color-and-price___2q0A2 > h5").textContent;
-        productData["imageURL"] = dom.window.document.querySelector('.content___1wmQY').getElementsByTagName('img')[0].src;
+        productData["color"] = getText(dom, '.color-and-price___2q0A2 > h5');
+        productData["imageURLs"] = await getImageURLs(url);
 
         const colorArr = getColorOptions(dom);
         productData["colorsAvailable"] = colorArr.length;
         productData["colorOptions"] = colorArr;
-
+        
         const sizes = await getSizes(url);
-        productData["sizesAvailable"] = sizes.length;
-        productData["sizesOptions"] = sizes;
+        if (sizes !== "Not Available.") {
+            productData["sizesAvailable"] = sizes.length;
+            productData["sizesOptions"] = sizes;
+        } else {
+            productData["sizesAvailable"] = 0;
+        }
 
         return productData;
         
@@ -96,29 +99,58 @@ async function getSizes(url) {
         const { data } = await axios.get(sizeURL);
         const sizeList = data.variation_list;
 
-        let sizeArr = [];
-        for (const size of sizeList) {
-            if (size.availability_status === 'IN_STOCK') {
-                sizeArr.push(size.size);
+        if (sizeList) {
+            let sizeArr = [];
+            for (const size of sizeList) {
+                if (size.availability_status === 'IN_STOCK') {
+                    sizeArr.push(size.size);
+                }
             }
+            return sizeArr;
+        } else {
+            return "Not Available.";
         }
-        return sizeArr;
 
-	} catch (error) {
-		console.error(error)
+	} catch (err) {
+		console.error(err)
 	}
 }
 
-function getDescription(resp) {
+async function getImageURLs(url) {
+    try {
+        let productCode = url.match(/[^\/]+$/)[0];
+        productCode = productCode.match(/(.*?).html/)[0];
+        productCode = productCode.substring(0, productCode.length - 5);
+        const sizeURL = `https://www.adidas.com/api/products/${productCode}?sitePath=us`;
+
+        const { data } = await axios.get(sizeURL);
+        const imgList = data.view_list;
+
+        let imgArr = [];
+        for (const img of imgList) {
+            imgArr.push(img.image_url);
+        }
+        return imgArr;
+
+	} catch (err) {
+		console.error(err)
+	}
+}
+
+function getDescription(response) {
 	let re = /"subtitle(.*?)"text/;
-    if (resp.data.match(re)) {
-        let description = resp.data.match(re)[0];
+    if (response.data.match(re)) {
+        let description = response.data.match(re)[0];
         description = description.slice(14);
         description = description.substring(0, description.length - 9);
         return description;
     } else {
         return "No Description.";
     }
+}
+
+function getText(dom, path) {
+	return dom.window.document.querySelector(path).textContent;
 }
 
 function getOriginalPrice(dom) {
@@ -138,6 +170,6 @@ function getColorOptions(dom) {
         }
         return colorArr;
     } else {
-        return dom.window.document.querySelector(".color-and-price___2q0A2 > h5").textContent;
+        return [dom.window.document.querySelector(".color-and-price___2q0A2 > h5").textContent];
     }
 }
