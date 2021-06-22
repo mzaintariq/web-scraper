@@ -162,7 +162,7 @@ async function getDescription(url) {
 }
 
 function getText(dom, path) {
-    if (dom.window.document.querySelector(path).textContent) {
+    if (dom.window.document.querySelector(path)) {
         return dom.window.document.querySelector(path).textContent;
     } else {
         return "Not Available."
